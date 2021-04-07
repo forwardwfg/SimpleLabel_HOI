@@ -1,2 +1,2 @@
-# SimleLabel_HOI
+# SimpleLabel_HOI
 Label tool
