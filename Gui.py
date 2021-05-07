@@ -7,7 +7,7 @@ from tkinter import ttk
 
 class GUI(object):
     def __init__(self):
-        self.bbox_nums = 30
+        self.bbox_nums = 50 
         self.window = tk.Tk()
         self.sub_var = tk.IntVar()
         self.relation_var = tk.IntVar()
@@ -76,30 +76,30 @@ class GUI(object):
 
 
         #选择的<人-物>关系
-        frm4 = tk.Frame(self.window)
-        l = tk.Label(self.window,text="please select a relation for the pair",\
-                bg='green', font=('Arial', 12), width=40, height=1) 
-        l.pack()
-        for hoi_key,hoi_value in Hoi_cls.items():     
-            r1 = tk.Radiobutton(frm4, text=str(hoi_value)+":"+hoi_key, variable=self.relation_var, \
-                value=hoi_value, command=None)
-            r1.pack()
-        frm4.pack()
-
-        if mode=="train":
-            frm_t = tk.Frame(self.window)
-            l_t = tk.Label(self.window,text="please select a object relation",\
-                    bg='green', font=('Arial', 10), width=35, height=1) 
-            l_t.pack()
-
-            for hoi_key,hoi_value in Hoi_cls_What.items():     
-                r1 = tk.Radiobutton(frm_t, text=str(hoi_value)+":"+hoi_key, variable=self.relation_var_w, \
+        select_relation = False #不需要选择关系，根据bbx的类别来确定关系
+        if select_relation: 
+            frm4 = tk.Frame(self.window)
+            l = tk.Label(self.window,text="please select a relation for the pair",\
+                    bg='green', font=('Arial', 12), width=40, height=1) 
+            l.pack()
+            for hoi_key,hoi_value in Hoi_cls.items():     
+                r1 = tk.Radiobutton(frm4, text=str(hoi_value)+":"+hoi_key, variable=self.relation_var, \
                     value=hoi_value, command=None)
                 r1.pack()
-          
-            frm_t.pack()
+            frm4.pack()
 
+            if mode=="train":
+                frm_t = tk.Frame(self.window)
+                l_t = tk.Label(self.window,text="please select a object relation",\
+                        bg='green', font=('Arial', 10), width=35, height=1) 
+                l_t.pack()
 
+                for hoi_key,hoi_value in Hoi_cls_What.items():     
+                    r1 = tk.Radiobutton(frm_t, text=str(hoi_value)+":"+hoi_key, variable=self.relation_var_w, \
+                        value=hoi_value, command=None)
+                    r1.pack()
+            
+                frm_t.pack()
 
 
 
@@ -116,15 +116,31 @@ class GUI(object):
             relation_var_w = self.relation_var_w.get()
 
         cur_dict = q_json.get()
-        if mode=="test":
-            hoi_dict = {"subject_id":pair_sub_var,"object_id":pair_obj_var,"category_id":relation_var}
-        else:
-            hoi_dict = {"subject_id":pair_sub_var,"object_id":pair_obj_var,"category_id":relation_var,\
-                        "hoi_category_id":relation_var_w}
-
 
         id_in_json= q_idx.get()
         q_idx.put(id_in_json)
+        if mode=="test":
+            hoi_dict = {"subject_id":pair_sub_var,"object_id":pair_obj_var,"category_id":relation_var}
+        else:
+            #如果不选择，默认为0
+            if relation_var == 0 and relation_var_w ==0:
+                sub = cur_dict[id_in_json]["annotations"][pair_sub_var]["category_id"]
+                obj = cur_dict[id_in_json]["annotations"][pair_obj_var]["category_id"]
+                if sub == 1:
+                    if obj == 7:
+                        relation_var,relation_var_w  = 2,7
+                    else: 
+                        relation_var,relation_var_w  = 1,obj 
+
+                    hoi_dict = {"subject_id":pair_sub_var,"object_id":pair_obj_var,"category_id":relation_var,\
+                         "hoi_category_id":relation_var_w}
+                else:
+                    bbx_subject_warning()
+            else:
+                hoi_dict = {"subject_id":pair_sub_var,"object_id":pair_obj_var,"category_id":relation_var,\
+                        "hoi_category_id":relation_var_w}
+
+
 
         Err = [] 
         for idi,i in enumerate(cur_dict[id_in_json]["annotations"]):
@@ -134,6 +150,7 @@ class GUI(object):
 
         visited = []
         if not Err:
+                    
             if hoi_dict not in cur_dict[id_in_json]["hoi_annotations"]: #避免重复添加hoi_annotation信息
 
                 try: 
@@ -168,6 +185,9 @@ class GUI(object):
 
     def bbx_category_warning(self,Err):
         messagebox.showinfo(title='Warning', message="bbx catetory is empty!\n"+str(Err))   
+
+    def bbx_subject_warning(self):
+        messagebox.showinfo(title='Warning', message="subject catetory should be a person")   
 
 
 
