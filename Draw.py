@@ -4,7 +4,10 @@ import json
 from arg import *
 import numpy as np
 from Visible import visible
-class draw():
+from collections import deque
+from utils.getcircle import *
+
+class draw(object):
     def __init__(self):
         super().__init__()
         self.s_x = 0
@@ -13,7 +16,7 @@ class draw():
         self.e_y = -1
         # self.dir_path = '/media/ubuntu_data2/gwf/pic/'
         # self.dir_path = 'Y:/02_dataset/qiuweiyu/to_fgm/csbank/'
-        self.dir_path = '/home/gwf/图片'
+        # self.dir_path = '/home/gwf/图片'
         self.img_name = None
         self.img_new = None
         self.img_new_copy = None
@@ -25,6 +28,7 @@ class draw():
         self.stack_name = []
         self.pic_idx_in_json = 0
         self.pic_idx_in_dir = 0
+        self.q_points = deque(maxlen=3)
         
 
     def draw_rectangle(self,event,x,y,flags,q_json):
@@ -32,17 +36,20 @@ class draw():
         self.img_new_copy = self.img_new.copy()
         if event==cv2.EVENT_LBUTTONDOWN:
             self.s_x,self.s_y=x,y
-        elif event == cv2.EVENT_MOUSEMOVE and flags == cv2.EVENT_FLAG_LBUTTON:
-            self.after_mv = True
-            cv2.rectangle(self.img_new_copy,(self.s_x,self.s_y),(x,y),(0,0,195),3) #还没确定终点之前都在之前的图上画，
-            self.img_time = self.img_new_copy
+        # elif event == cv2.EVENT_MOUSEMOVE and flags == cv2.EVENT_FLAG_LBUTTON:
+        #     self.after_mv = True
+        #     cv2.rectangle(self.img_new_copy,(self.s_x,self.s_y),(x,y),(0,0,195),3) #还没确定终点之前都在之前的图上画，
+        #     self.img_time = self.img_new_copy
           
-
-        if self.after_mv and event==cv2.EVENT_LBUTTONUP:
+        if event==cv2.EVENT_LBUTTONUP:
+            self.img_time = self.img_new_copy
             self.img_new = self.img_time
-            self.e_x,self.e_y = x,y
+            cv2.circle(self.img_time, (self.s_x,self.s_y), 1, (0,0,255),4)
             if q_json.empty():
-                q_json.put({self.img_name:{"img_id":0,"hoi_annotations":[],"annotations":[]}})
+                if mode=="test":
+                    q_json.put({self.img_name:{"hoi_annotations":[],"annotations":[]}})
+                else:
+                    q_json.put({self.img_name:{"img_id":0,"hoi_annotations":[],"annotations":[]}})
                 cur_dict = q_json.get()
             else:
                 cur_dict = q_json.get()
@@ -55,79 +62,43 @@ class draw():
                         cur_dict[self.img_name] = {"img_id":len(cur_dict),"hoi_annotations":[],"annotations":[]}
           
             #边界处理
-            height,weight,depth = self.img_new.shape
-            if self.s_x < 0:
-                self.s_x = 0
-            if self.s_y < 0:
-                self.s_y = 0 
-            if self.s_x > weight:
-                self.s_x = weight-1
-            if self.s_y > height:
-                self.s_y = height-1 
-            #如果逆着画，终点坐标有可能小于0
-            if self.e_x < 0:
-                self.e_x = 0
-            if self.e_y < 0:
-                self.e_y = 0
-            if self.e_x > weight:
-                self.e_x = weight-1
-            if self.e_y > height:
-                self.e_y = height-1
-
-
-              #如果是从右下角画到左上角,交换坐标
-            if self.s_x>self.e_x and self.s_y>self.e_y:
-                sx,sy,ex,ey = self.e_x,self.e_y,self.s_x,self.s_y
-                self.s_x,self.s_y,self.e_x,self.e_y = sx,sy,ex,ey
-
-            # 如果从左下角画到右上角
-            if self.e_x>self.s_x and self.e_y<self.s_y:
-                ex,ey = self.e_x,self.s_y
-                sx,sy = self.s_x,self.e_y
-                self.s_x,self.s_y,self.e_x,self.e_y = sx,sy,ex,ey
-            
-            # 如果从右上角画到左下角
-            if self.e_x<self.s_x and self.e_y>self.s_y:
-                ex,ey = self.s_x,self.e_y
-                sx,sy = self.e_x,self.s_y
-                self.s_x,self.s_y,self.e_x,self.e_y = sx,sy,ex,ey
-            
             an_n = len(cur_dict[self.img_name]["annotations"])
             #每个边框写上它的id
-            cv2.putText(self.img_time,str(an_n),(self.e_x-5,self.s_y+5),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.8, color=(255,0,0),thickness=2)
-            pos = [self.s_x,self.s_y,self.e_x,self.e_y]
+            # cv2.putText(self.img_time,str(an_n),(self.e_x-5,self.s_y+5),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.8, color=(255,0,0),thickness=2)
             category_id = -1
             #输入category_id
-        
-            bbox_dict = {"bbox":pos,"category_id":category_id}
+            if len(self.q_points)<2:
+                point = Point(self.s_x,self.s_y)
+                self.q_points.append(point)
+            else :
+                p1 = self.q_points.popleft() 
+                p2 = self.q_points.popleft() 
+                p3 = Point(self.s_x,self.s_y) 
+                print(p1.x,p2.x,p3.x)
+                x0,y0,R = getCircle(p1,p2,p3)
+                cv2.circle(self.img_time, (int(x0),int(y0)), int(R), (0,0,255), 2)
+                cv2.putText(self.img_time,str(an_n),(int(x0)-5,int(y0)+5),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.4, color=(255,0,0),thickness=1)
+                bbox_dict = {"center":[float(x0),float(y0)],'R':float(R),'vec':[0,0]}
+                cur_dict[self.img_name]["annotations"].append(bbox_dict)
+                self.stack[self.img_name].append(self.img_time)
 
-            cur_dict[self.img_name]["annotations"].append(bbox_dict)
             q_json.put(cur_dict)
-            # self.drawed = True
-            self.after_mv = False
-            self.stack[self.img_name].append(self.img_time)
-
       
     def start_draw(self,q_json,q_idx):
            
-      
-        with open(import_json,'r') as f:
-            try:
-                json_data = json.load(f)      
-                q_json.put(json_data)         
-            except:
-            #     q_json.put({})
-                json_data = {}
-                pass
-
-
+        if os.path.exists(import_json):
+            with open(import_json,'r') as f:
+                json_data = json.load(f)
+                q_json.put(json_data)
+                # pic = load_data
+        else:
+            json_data = {}
         imgs_dirs = os.listdir(import_pic_path)
 
         if os.path.exists('./last_visited.txt'): 
             with open('./last_visited.txt','r') as f:
-                
-                try:self.pic_idx_in_dir = int(f.read()[0]) 
-                except:self.pic_idx_in_dir=0
+                self.pic_idx_in_dir = int(f.read().split(' ')[0])
+                    
                 self.img_name = imgs_dirs[self.pic_idx_in_dir]
                 print('last visited image is {}'.format(self.img_name))
             
@@ -138,16 +109,16 @@ class draw():
             self.withdrawed = False
             q_idx.put(self.img_name)
 
-            #把改图的数据提取出来，然后就行绘制
+             
             if self.img_name in json_data.keys():
                 pic_json = json_data[self.img_name]
             else:
                 pic_json = {}
-
+            
             # self.img_name = pic_json["file_name"]
             stack = visible(pic_json,self.img_name)
             self.stack[self.img_name] = stack 
-            self.img_new = stack[-1] #这图片把所有的框都画出来了
+            self.img_new = stack[-1] 
 
             if self.img_name not in self.stack_name:
                 self.stack_name.append(self.img_name)
@@ -158,7 +129,8 @@ class draw():
 
             self.img_time = self.img_new
             cv2.namedWindow(self.img_name,0)#没有namedwindow，不能画，为啥？
-            cv2.resizeWindow(self.img_name,960,540)
+            cv2.moveWindow(self.img_name,10,10)
+            cv2.resizeWindow(self.img_name,1400,800)
             cv2.setMouseCallback(self.img_name,self.draw_rectangle,q_json)
             print("img_name:{} is processing".format(self.img_name))
             
@@ -168,10 +140,13 @@ class draw():
                 if k == 27: # ESC键 切换图片
                     json_data = q_json.get()
                     q_json.put(json_data)
+                    
                     if self.img_name not in json_data.keys(): 
                         with open('./skip.txt','a') as f:   #记录没有标注过的图片
                             f.write(self.img_name) 
                             f.write('\r\n')
+                    else:
+                        print(json_data[self.img_name])
 
                     with open('./last_visited.txt','w') as f:
                         f.write(str(self.pic_idx_in_dir)+' '+self.img_name)#记录最后访问的图片
@@ -212,7 +187,8 @@ class draw():
             cv2.destroyAllWindows()
             q_json.put(cur_dict)
             cv2.namedWindow(self.img_name,0)
-            cv2.resizeWindow(self.img_name,960,540)
+            cv2.moveWindow(self.img_name,10,10)
+            cv2.resizeWindow(self.img_name,1400,800)
             cv2.setMouseCallback(self.img_name,self.draw_rectangle,q_json)
             self.pic_idx_in_dir -= 1
             
