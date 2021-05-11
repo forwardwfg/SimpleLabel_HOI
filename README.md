@@ -1,4 +1,5 @@
 # Simple_label 使用说明
+使用labelimg标记边框后使用该工具进行标记关系
 
 ## 一.环境
 * python37
