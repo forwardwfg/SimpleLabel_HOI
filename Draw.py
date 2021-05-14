@@ -13,7 +13,6 @@ class draw():
         self.e_y = -1
         # self.dir_path = '/media/ubuntu_data2/gwf/pic/'
         # self.dir_path = 'Y:/02_dataset/qiuweiyu/to_fgm/csbank/'
-        self.dir_path = '/home/gwf/图片'
         self.img_name = None
         self.img_new = None
         self.img_new_copy = None
@@ -94,7 +93,8 @@ class draw():
             
             an_n = len(cur_dict[self.img_name]["annotations"])
             #每个边框写上它的id
-            cv2.putText(self.img_time,str(an_n),(self.e_x-5,self.s_y+5),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.8, color=(255,0,0),thickness=2)
+            id_pos_x,id_pos_y = (self.s_x+self.e_x)//2-5, self.s_y+15
+            cv2.putText(self.img_time,str(an_n),(id_pos_x,id_pos_y),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.8, color=(255,0,0),thickness=2)
             pos = [self.s_x,self.s_y,self.e_x,self.e_y]
             category_id = -1
             #输入category_id
@@ -109,12 +109,14 @@ class draw():
 
       
     def start_draw(self,q_json,q_idx):
-           
+
+        # if os.path.exists("./label_train.json"):
+        #     import_json = "./label_train.json"   
       
         with open(import_json,'r') as f:
             try:
                 json_data = json.load(f)      
-                q_json.put(json_data)         
+                q_json.put(json_data) #将json数据放入队列        
             except:
             #     q_json.put({})
                 json_data = {}
@@ -123,14 +125,19 @@ class draw():
 
         imgs_dirs = os.listdir(import_pic_path)
 
+        # 在txt中取出上一张访问图片在文件夹中的索引
         if os.path.exists('./last_visited.txt'): 
             with open('./last_visited.txt','r') as f:
                 
-                try:self.pic_idx_in_dir = int(f.read()[0]) 
-                except:self.pic_idx_in_dir=0
+                try:
+                    self.pic_idx_in_dir = int(f.read().split(' ')[0]) 
+                except:
+                    self.pic_idx_in_dir=0
                 self.img_name = imgs_dirs[self.pic_idx_in_dir]
                 print('last visited image is {}'.format(self.img_name))
-            
+        
+
+
         while self.pic_idx_in_dir < len(imgs_dirs):
         
             self.img_name = imgs_dirs[self.pic_idx_in_dir]
@@ -139,6 +146,7 @@ class draw():
             q_idx.put(self.img_name)
 
             #把改图的数据提取出来，然后就行绘制
+            print(self.img_name)
             if self.img_name in json_data.keys():
                 pic_json = json_data[self.img_name]
             else:
@@ -157,7 +165,7 @@ class draw():
                 self.drawed = True
 
             self.img_time = self.img_new
-            cv2.namedWindow(self.img_name,0)#没有namedwindow，不能画，为啥？
+            cv2.namedWindow(self.img_name,0)
             cv2.resizeWindow(self.img_name,960,540)
             cv2.setMouseCallback(self.img_name,self.draw_rectangle,q_json)
             print("img_name:{} is processing".format(self.img_name))
@@ -165,7 +173,9 @@ class draw():
             while(1):
                 cv2.imshow(self.img_name,self.img_time) #不断显示实时图片
                 k=cv2.waitKey(1)&0xFF
-                if k == 27: # ESC键 切换图片
+                if k == 27: # ESC键 切换图片cv2.waitKey(delay)返回值：
+                    #1、等待期间有按键：返回按键的ASCII码（比如：Esc的ASCII码为27）；#2、等待期间没有按键：返回 -1；
+                    #0xFF是十六进制常量，二进制值为11111111。 它用于屏蔽序列的最后8位，并且任何键盘字符的ord（）都不得大于255。
                     json_data = q_json.get()
                     q_json.put(json_data)
                     if self.img_name not in json_data.keys(): 
@@ -174,6 +184,7 @@ class draw():
                             f.write('\r\n')
 
                     with open('./last_visited.txt','w') as f:
+                        print("idx_in_dir",self.pic_idx_in_dir)
                         f.write(str(self.pic_idx_in_dir)+' '+self.img_name)#记录最后访问的图片
 
                     cv2.destroyAllWindows()
